@@ -1,0 +1,21 @@
+{
+  "name": "kick-modguard-bot",
+  "version": "1.0.0",
+  "description": "Discord bot that tracks Kick moderators shifts using Kick webhooks and anti-AFK warnings.",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy": "node src/deploy-commands.js",
+    "subscribe:kick": "node src/kick/subscribeEvents.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.9.1",
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0"
+  }
+}
