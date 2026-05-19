@@ -43,19 +43,7 @@ async function logShiftClosed({ mod, shift, reason }) {
       { name: 'السبب', value: reason || shift.close_reason || 'غير محدد', inline: false },
       { name: 'الإجمالي', value: formatDuration(total), inline: true },
       { name: 'النشط', value: formatDuration(active), inline: true },
-      { name: 'الخامل', value: formatDuration(idle), inline: true },
-      { name: 'التحذيرات', value: String(shift.warnings || 0), inline: true }
-    ));
-}
-
-async function logWarning({ mod, shift, warningNumber, minutesSinceLastActivity }) {
-  await sendLog(baseEmbed('⚠️ تحذير خمول مود', 0xf59e0b)
-    .addFields(
-      { name: 'المود', value: `<@${mod.discord_id}>`, inline: true },
-      { name: 'Kick', value: mod.kick_username, inline: true },
-      { name: 'التحذير', value: `${warningNumber} / ${config.maxWarnings}`, inline: true },
-      { name: 'آخر تفاعل', value: `منذ ${minutesSinceLastActivity} دقيقة`, inline: true },
-      { name: 'تنبيه', value: `لو وصل إلى ${config.maxWarnings} تحذيرات سيتم قفل الشيفت تلقائيًا.` }
+      { name: 'الخامل', value: formatDuration(idle), inline: true }
     ));
 }
 
@@ -69,4 +57,4 @@ async function logActivity({ mod, type, content }) {
     ));
 }
 
-module.exports = { setClient, sendLog, baseEmbed, logShiftStart, logShiftClosed, logWarning, logActivity };
+module.exports = { setClient, sendLog, baseEmbed, logShiftStart, logShiftClosed, logActivity };

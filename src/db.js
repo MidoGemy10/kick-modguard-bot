@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS mods (
   kick_user_id TEXT UNIQUE,
   kick_username TEXT NOT NULL UNIQUE COLLATE NOCASE,
   active INTEGER NOT NULL DEFAULT 1,
+  last_activity_at TEXT,
+  last_activity_type TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -30,7 +32,10 @@ CREATE TABLE IF NOT EXISTS stream_state (
   title TEXT,
   started_at TEXT,
   ended_at TEXT,
-  last_event_at TEXT
+  last_event_at TEXT,
+  panel_message_id TEXT,
+  panel_channel_id TEXT,
+  panel_created_at TEXT
 );
 
 INSERT OR IGNORE INTO stream_state (id, is_live) VALUES (1, 0);
@@ -82,5 +87,17 @@ CREATE TABLE IF NOT EXISTS processed_events (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `);
+
+function addColumnIfMissing(table, column, definition) {
+  const exists = db.prepare(`PRAGMA table_info(${table})`).all().some((row) => row.name === column);
+  if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+addColumnIfMissing('mods', 'last_activity_at', 'TEXT');
+addColumnIfMissing('mods', 'last_activity_type', 'TEXT');
+addColumnIfMissing('stream_state', 'panel_message_id', 'TEXT');
+addColumnIfMissing('stream_state', 'panel_channel_id', 'TEXT');
+addColumnIfMissing('stream_state', 'panel_created_at', 'TEXT');
+
 
 module.exports = db;

@@ -1,6 +1,7 @@
 const express = require('express');
 const config = require('../config');
 const shiftManager = require('../shiftManager');
+const presencePanel = require('../discord/presencePanel');
 const { verifyKickRequest } = require('./verifyWebhook');
 
 function hasModeratorBadge(sender) {
@@ -73,6 +74,7 @@ function createWebhookServer() {
 
       if (eventType === 'livestream.status.updated') {
         await shiftManager.updateStreamState(payload);
+        await presencePanel.handleStreamStatusChanged(Boolean(payload.is_live));
         return res.json({ ok: true, live: payload.is_live });
       }
 

@@ -3,7 +3,7 @@ const config = require('./config');
 const { startWebhookServer } = require('./kick/webhookServer');
 const { handleInteraction } = require('./discord/handlers');
 const logs = require('./discord/logs');
-const shiftManager = require('./shiftManager');
+const presencePanel = require('./discord/presencePanel');
 
 if (!config.discordToken) {
   console.error('DISCORD_TOKEN missing in .env');
@@ -17,12 +17,17 @@ const client = new Client({
 client.once('ready', () => {
   console.log(`[DISCORD] Logged in as ${client.user.tag}`);
   logs.setClient(client);
+  presencePanel.setClient(client);
 
+  const updateMs = Math.max(15, config.presenceUpdateSeconds) * 1000;
   setInterval(() => {
-    shiftManager.checkInactiveMods().catch((err) => console.error('[INACTIVITY_CHECK_ERROR]', err));
-  }, config.checkEveryMinutes * 60 * 1000);
+    presencePanel.updatePresencePanel().catch((err) => console.error('[PRESENCE_PANEL_ERROR]', err));
+  }, updateMs);
 
-  console.log(`[SHIFT] Inactivity check every ${config.checkEveryMinutes} minutes.`);
+  // لو البوت اتعمله Restart واللايف شغال، اللوحة ترجع تتحدث تلقائيًا.
+  presencePanel.updatePresencePanel().catch((err) => console.error('[PRESENCE_PANEL_START_ERROR]', err));
+
+  console.log(`[PRESENCE] Panel update every ${config.presenceUpdateSeconds} seconds.`);
 });
 
 client.on('interactionCreate', (interaction) => {

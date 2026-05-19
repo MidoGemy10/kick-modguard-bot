@@ -25,9 +25,11 @@ module.exports = {
   kickAccessToken: process.env.KICK_APP_ACCESS_TOKEN,
   kickVerifySignature: bool(process.env.KICK_VERIFY_SIGNATURE, true),
 
-  inactivityMinutes: int(process.env.INACTIVITY_MINUTES, 30),
-  maxWarnings: int(process.env.MAX_WARNINGS, 3),
-  checkEveryMinutes: int(process.env.CHECK_EVERY_MINUTES, 5),
+  // قناة لوحة وجود المودات. لو مش موجودة، البوت يستخدم LOG_CHANNEL_ID.
+  presenceChannelId: process.env.PRESENCE_CHANNEL_ID || process.env.LOG_CHANNEL_ID,
+  presenceActiveMinutes: int(process.env.PRESENCE_ACTIVE_MINUTES || process.env.INACTIVITY_MINUTES, 30),
+  presenceUpdateSeconds: int(process.env.PRESENCE_UPDATE_SECONDS, 60),
+
   minMessageLength: int(process.env.MIN_MESSAGE_LENGTH, 3),
   duplicateWindowMinutes: int(process.env.DUPLICATE_WINDOW_MINUTES, 10),
   countOnlyWhenLive: bool(process.env.COUNT_ONLY_WHEN_LIVE, false),

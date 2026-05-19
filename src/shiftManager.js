@@ -5,7 +5,7 @@ const { isValidActivity, normalizeMessage } = require('./utils/activityFilter');
 const logs = require('./discord/logs');
 
 function getModByDiscord(discordId) {
-  return db.prepare('SELECT * FROM mods WHERE discord_id = ? AND active = 1').get(discordId);
+  return db.prepare('SELECT * FROM mods WHERE discord_id = ? AND active = 1').get(String(discordId));
 }
 
 function getModByKickUserId(kickUserId) {
@@ -19,6 +19,11 @@ function getModByKickUsername(username) {
 function upsertKickUserId(modId, kickUserId) {
   db.prepare('UPDATE mods SET kick_user_id = ? WHERE id = ? AND (kick_user_id IS NULL OR kick_user_id = ?)')
     .run(String(kickUserId), modId, String(kickUserId));
+}
+
+function touchModActivity(modId, eventTime, type) {
+  db.prepare('UPDATE mods SET last_activity_at = ?, last_activity_type = ? WHERE id = ?')
+    .run(eventTime, type, modId);
 }
 
 function addMod({ discordId, kickUsername, kickUserId = null }) {
@@ -53,6 +58,9 @@ async function startShiftForMod(mod) {
     VALUES (?, ?, ?, 'open')
   `).run(mod.id, now, now);
 
+  // بداية الشيفت نفسها تعتبر وجود داخل اللوحة، لكن التفاعل الحقيقي يتحدث من Kick.
+  touchModActivity(mod.id, now, 'shift_start');
+
   const shift = db.prepare('SELECT * FROM shifts WHERE id = ?').get(info.lastInsertRowid);
   await logs.logShiftStart({ mod, shift });
   return { alreadyOpen: false, shift };
@@ -72,12 +80,8 @@ async function startShiftByDiscord(discordId) {
 
 function computeShiftMinutes(shift, closedAtIso = nowIso()) {
   const total = diffMinutes(closedAtIso, shift.started_at);
-
-  const warnings = db.prepare('SELECT COUNT(*) AS c FROM shift_warnings WHERE shift_id = ?').get(shift.id).c || 0;
-  const idle = Math.min(total, warnings * config.inactivityMinutes);
-  const active = Math.max(0, total - idle);
-
-  return { total, idle, active };
+  // تم إلغاء نظام التحذيرات والخمول. التقارير الآن تعتمد على مدة الشيفت فقط.
+  return { total, idle: 0, active: total };
 }
 
 async function closeShift(shiftId, reason = 'مغلق يدويًا') {
@@ -145,9 +149,6 @@ async function recordActivityForKickUser({ kickUserId, kickUsername, type, conte
 
   if (!mod) return { ok: false, reason: 'اليوزر مش مربوط بأي مود.' };
 
-  const shift = getOpenShift(mod.id);
-  if (!shift) return { ok: false, reason: 'لا يوجد شيفت مفتوح.' };
-
   if (config.countOnlyWhenLive && !isStreamLive()) {
     return { ok: false, reason: 'القناة ليست Live.' };
   }
@@ -160,57 +161,20 @@ async function recordActivityForKickUser({ kickUserId, kickUsername, type, conte
   }
 
   const eventTime = createdAt ? new Date(createdAt).toISOString() : nowIso();
+  touchModActivity(mod.id, eventTime, type);
 
-  db.prepare(`
-    INSERT INTO mod_activity (shift_id, mod_id, type, content, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(shift.id, mod.id, type, normalizeMessage(storedContent), eventTime);
+  const shift = getOpenShift(mod.id);
+  if (shift) {
+    db.prepare(`
+      INSERT INTO mod_activity (shift_id, mod_id, type, content, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(shift.id, mod.id, type, normalizeMessage(storedContent), eventTime);
 
-  db.prepare('UPDATE shifts SET last_activity_at = ? WHERE id = ?').run(eventTime, shift.id);
+    db.prepare('UPDATE shifts SET last_activity_at = ? WHERE id = ?').run(eventTime, shift.id);
+  }
 
   await logs.logActivity({ mod, type, content: storedContent });
-  return { ok: true, mod, shift };
-}
-
-function hasRecentWarning(shiftId) {
-  const since = new Date(Date.now() - config.inactivityMinutes * 60000).toISOString();
-  return db.prepare('SELECT id FROM shift_warnings WHERE shift_id = ? AND created_at >= ? LIMIT 1')
-    .get(shiftId, since);
-}
-
-async function checkInactiveMods() {
-  const openShifts = db.prepare(`
-    SELECT s.*, m.discord_id, m.kick_username
-    FROM shifts s
-    JOIN mods m ON m.id = s.mod_id
-    WHERE s.status = 'open'
-  `).all();
-
-  for (const shift of openShifts) {
-    if (config.countOnlyWhenLive && !isStreamLive()) continue;
-
-    const minutesSinceLastActivity = diffMinutes(nowIso(), shift.last_activity_at);
-    if (minutesSinceLastActivity < config.inactivityMinutes) continue;
-    if (hasRecentWarning(shift.id)) continue;
-
-    const newWarnings = shift.warnings + 1;
-    const warningTime = nowIso();
-
-    db.prepare(`
-      INSERT INTO shift_warnings (shift_id, mod_id, warning_number, last_activity_at, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(shift.id, shift.mod_id, newWarnings, shift.last_activity_at, warningTime);
-
-    db.prepare('UPDATE shifts SET warnings = ? WHERE id = ?').run(newWarnings, shift.id);
-
-    const mod = db.prepare('SELECT * FROM mods WHERE id = ?').get(shift.mod_id);
-
-    if (newWarnings >= config.maxWarnings) {
-      await closeShift(shift.id, `${config.maxWarnings} تحذيرات خمول`);
-    } else {
-      await logs.logWarning({ mod, shift, warningNumber: newWarnings, minutesSinceLastActivity });
-    }
-  }
+  return { ok: true, mod, shift: shift || null };
 }
 
 function markEventProcessed(messageId) {
@@ -242,7 +206,7 @@ function getReport(period = 'today') {
       COALESCE(SUM(s.total_minutes), 0) AS total_minutes,
       COALESCE(SUM(s.active_minutes), 0) AS active_minutes,
       COALESCE(SUM(s.idle_minutes), 0) AS idle_minutes,
-      COALESCE(SUM(s.warnings), 0) AS warnings
+      0 AS warnings
     FROM mods m
     LEFT JOIN shifts s ON s.mod_id = m.id AND s.started_at >= ? AND s.status = 'closed'
     WHERE m.active = 1
@@ -262,7 +226,6 @@ module.exports = {
   closeAllOpenShifts,
   recordActivityForKickUser,
   updateStreamState,
-  checkInactiveMods,
   markEventProcessed,
   getReport,
   isStreamLive

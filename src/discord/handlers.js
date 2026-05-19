@@ -2,6 +2,7 @@ const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const config = require('../config');
 const db = require('../db');
 const shiftManager = require('../shiftManager');
+const presencePanel = require('./presencePanel');
 const { diffMinutes, formatDuration } = require('../utils/time');
 
 function isAdmin(interaction) {
@@ -52,7 +53,7 @@ async function handleInteraction(interaction) {
     const result = await shiftManager.startShiftByDiscord(interaction.user.id);
     if (!result.ok) return interaction.reply({ content: `❌ ${result.reason}`, ephemeral: true });
     if (result.alreadyOpen) return interaction.reply({ content: '⚠️ عندك شيفت مفتوح بالفعل.', ephemeral: true });
-    return interaction.reply({ content: `🟢 تم فتح شيفتك. لازم تتفاعل في شات Kick كل ${config.inactivityMinutes} دقيقة كحد أقصى.`, ephemeral: true });
+    return interaction.reply({ content: `🟢 تم فتح شيفتك. ظهورك في لوحة المودات بيتحدث حسب تفاعلك في شات Kick.`, ephemeral: true });
   }
 
   if (name === 'خروج') {
@@ -75,8 +76,7 @@ async function handleInteraction(interaction) {
       .addFields(
         { name: 'Kick', value: mod.kick_username, inline: true },
         { name: 'مدة الشيفت', value: formatDuration(sinceStart), inline: true },
-        { name: 'آخر تفاعل', value: `منذ ${sinceActivity} دقيقة`, inline: true },
-        { name: 'التحذيرات', value: `${shift.warnings} / ${config.maxWarnings}`, inline: true }
+        { name: 'آخر تفاعل', value: `منذ ${sinceActivity} دقيقة`, inline: true }
       )
       .setTimestamp();
 
@@ -91,7 +91,7 @@ async function handleInteraction(interaction) {
     const title = period === 'week' ? 'آخر 7 أيام' : period === 'month' ? 'آخر 30 يوم' : 'اليوم';
     const lines = rows.length ? rows.map((r, i) => {
       return `**${i + 1}. <@${r.discord_id}>** | Kick: \`${r.kick_username}\`\n` +
-        `النشط: **${formatDuration(r.active_minutes)}** | الإجمالي: ${formatDuration(r.total_minutes)} | الخامل: ${formatDuration(r.idle_minutes)} | تحذيرات: ${r.warnings}`;
+        `النشط: **${formatDuration(r.active_minutes)}** | الإجمالي: ${formatDuration(r.total_minutes)} | الخامل: ${formatDuration(r.idle_minutes)}`;
     }) : ['لا يوجد بيانات.'];
 
     const embed = new EmbedBuilder()
@@ -112,6 +112,19 @@ async function handleInteraction(interaction) {
     return interaction.reply({ content: `✅ تم قفل شيفت <@${user.id}>.`, ephemeral: true });
   }
 
+
+  if (name === 'لوحة-المودات') {
+    if (!(await requireAdmin(interaction))) return;
+    await interaction.deferReply({ ephemeral: true });
+    const state = db.prepare('SELECT * FROM stream_state WHERE id = 1').get();
+    if (!state?.is_live) {
+      return interaction.editReply('🔴 اللايف مش شغال حاليًا. اللوحة هتتبعت تلقائيًا أول ما Kick يبعت حدث Live.');
+    }
+    const result = await presencePanel.updatePresencePanel();
+    if (!result.ok) return interaction.editReply(`❌ لم يتم تحديث اللوحة: ${result.reason || 'سبب غير معروف'}`);
+    return interaction.editReply(result.created ? '✅ تم إرسال لوحة المودات.' : '✅ تم تحديث لوحة المودات.');
+  }
+
   if (name === 'اعدادات-الحضور') {
     if (!(await requireAdmin(interaction))) return;
     const state = db.prepare('SELECT * FROM stream_state WHERE id = 1').get();
@@ -119,14 +132,15 @@ async function handleInteraction(interaction) {
       .setTitle('⚙️ إعدادات حضور مودات Kick')
       .setColor(0xa855f7)
       .addFields(
-        { name: 'الخمول', value: `${config.inactivityMinutes} دقيقة`, inline: true },
-        { name: 'التحذيرات', value: `${config.maxWarnings}`, inline: true },
-        { name: 'الفحص كل', value: `${config.checkEveryMinutes} دقائق`, inline: true },
+        { name: 'حد الوجود في اللوحة', value: `${config.presenceActiveMinutes} دقيقة`, inline: true },
+        { name: 'تحديث اللوحة', value: `كل ${config.presenceUpdateSeconds} ثانية`, inline: true },
+        { name: 'قناة اللوحة', value: config.presenceChannelId ? `<#${config.presenceChannelId}>` : 'غير محددة', inline: true },
         { name: 'أقل طول رسالة', value: `${config.minMessageLength}`, inline: true },
         { name: 'فلتر التكرار', value: `${config.duplicateWindowMinutes} دقائق`, inline: true },
         { name: 'يحسب وقت اللايف فقط', value: config.countOnlyWhenLive ? 'نعم' : 'لا', inline: true },
         { name: 'قفل عند نهاية اللايف', value: config.closeShiftWhenStreamEnds ? 'نعم' : 'لا', inline: true },
-        { name: 'حالة اللايف', value: state?.is_live ? '🟢 Live' : '🔴 Offline', inline: true }
+        { name: 'حالة اللايف', value: state?.is_live ? '🟢 Live' : '🔴 Offline', inline: true },
+        { name: 'ملاحظة', value: 'تم إلغاء نظام التحذيرات والقفل بسبب الخمول. اللوحة فقط بتوضح الموجودين وغير الموجودين.' }
       )
       .setTimestamp();
     return interaction.reply({ embeds: [embed], ephemeral: true });

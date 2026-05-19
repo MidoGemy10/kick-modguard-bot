@@ -46,6 +46,10 @@ const commands = [
     .addStringOption(o => o.setName('السبب').setDescription('سبب القفل').setRequired(false)),
 
   new SlashCommandBuilder()
+    .setName('لوحة-المودات')
+    .setDescription('إرسال أو تحديث لوحة وجود مودات Kick يدويًا'),
+
+  new SlashCommandBuilder()
     .setName('اعدادات-الحضور')
     .setDescription('عرض إعدادات نظام حضور مودات Kick')
 ].map(c => c.toJSON());
