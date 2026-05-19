@@ -137,7 +137,7 @@ async function closeAllOpenShifts(reason) {
   }
 }
 
-async function recordActivityForKickUser({ kickUserId, kickUsername, type, content, createdAt, requireValidChat = true }) {
+async function recordActivityForKickUser({ kickUserId, kickUsername, type, content, createdAt, requireValidChat = true, logDetails = null }) {
   let mod = getModByKickUserId(kickUserId);
   if (!mod && kickUsername) {
     mod = getModByKickUsername(kickUsername);
@@ -173,7 +173,7 @@ async function recordActivityForKickUser({ kickUserId, kickUsername, type, conte
     db.prepare('UPDATE shifts SET last_activity_at = ? WHERE id = ?').run(eventTime, shift.id);
   }
 
-  await logs.logActivity({ mod, type, content: storedContent });
+  await logs.logActivity({ mod, type, content: storedContent, details: logDetails });
   return { ok: true, mod, shift: shift || null };
 }
 

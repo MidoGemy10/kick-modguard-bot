@@ -2,6 +2,8 @@ const express = require('express');
 const config = require('../config');
 const shiftManager = require('../shiftManager');
 const presencePanel = require('../discord/presencePanel');
+const logs = require('../discord/logs');
+const { parseModerationAction } = require('../utils/moderationParser');
 const { verifyKickRequest } = require('./verifyWebhook');
 
 function hasModeratorBadge(sender) {
@@ -54,22 +56,37 @@ function createWebhookServer() {
       }
 
       if (eventType === 'moderation.banned') {
-        const moderator = payload.moderator;
-        if (!moderator?.user_id) return res.json({ ok: true, ignored: 'no moderator' });
+        const details = parseModerationAction(payload);
 
-        const banned = payload.banned_user?.username ? `Ban/Timeout: ${payload.banned_user.username}` : 'Ban/Timeout';
-        const reason = payload.metadata?.reason ? ` - ${payload.metadata.reason}` : '';
+        if (!details.moderatorUserId) {
+          await logs.logModerationAction({
+            mod: null,
+            details,
+            resultReason: 'لم يتم العثور على بيانات المود داخل حدث Kick'
+          });
+          return res.json({ ok: true, logged: true, counted: false, reason: 'no moderator' });
+        }
 
         const result = await shiftManager.recordActivityForKickUser({
-          kickUserId: moderator.user_id,
-          kickUsername: moderator.username,
-          type: 'moderation_banned',
-          content: `${banned}${reason}`,
-          createdAt: payload.metadata?.created_at,
-          requireValidChat: false
+          kickUserId: details.moderatorUserId,
+          kickUsername: details.moderatorUsername,
+          type: details.type,
+          content: details.summary,
+          createdAt: details.createdAt,
+          requireValidChat: false,
+          logDetails: details
         });
 
-        return res.json({ ok: true, counted: result.ok, reason: result.reason || null });
+        // لو المود مش متضاف/مش مربوط في النظام، برضه ابعت الإجراء في LOG_CHANNEL عشان مفيش أكشن يضيع.
+        if (!result.ok) {
+          await logs.logModerationAction({
+            mod: null,
+            details,
+            resultReason: result.reason || 'لم يتم احتساب الإجراء كنشاط'
+          });
+        }
+
+        return res.json({ ok: true, logged: true, counted: result.ok, action: details.kind, reason: result.reason || null });
       }
 
       if (eventType === 'livestream.status.updated') {
