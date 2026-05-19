@@ -116,13 +116,11 @@ async function handleInteraction(interaction) {
   if (name === 'لوحة-المودات') {
     if (!(await requireAdmin(interaction))) return;
     await interaction.deferReply({ ephemeral: true });
-    const state = db.prepare('SELECT * FROM stream_state WHERE id = 1').get();
-    if (!state?.is_live) {
-      return interaction.editReply('🔴 اللايف مش شغال حاليًا. اللوحة هتتبعت تلقائيًا أول ما Kick يبعت حدث Live.');
-    }
-    const result = await presencePanel.updatePresencePanel();
+    const result = await presencePanel.updatePresencePanel('تحديث يدوي من الإدارة');
     if (!result.ok) return interaction.editReply(`❌ لم يتم تحديث اللوحة: ${result.reason || 'سبب غير معروف'}`);
-    return interaction.editReply(result.created ? '✅ تم إرسال لوحة المودات.' : '✅ تم تحديث لوحة المودات.');
+    const status = result.live ? '🟢 اللايف شغال' : '🔴 اللايف أوفلاين';
+    return interaction.editReply(`${result.created ? '✅ تم إرسال لوحة المودات.' : '✅ تم تحديث لوحة المودات.'}
+${status}`);
   }
 
   if (name === 'اعدادات-الحضور') {

@@ -13,10 +13,6 @@ function streamState() {
   return db.prepare('SELECT * FROM stream_state WHERE id = 1').get();
 }
 
-function isLive() {
-  return Boolean(streamState()?.is_live);
-}
-
 function getPresenceRows() {
   return db.prepare(`
     SELECT
@@ -31,14 +27,14 @@ function getPresenceRows() {
     FROM mods m
     LEFT JOIN shifts s ON s.mod_id = m.id AND s.status = 'open'
     WHERE m.active = 1
-    ORDER BY
-      CASE WHEN m.last_activity_at IS NULL THEN 1 ELSE 0 END,
-      m.last_activity_at DESC,
-      m.kick_username COLLATE NOCASE ASC
   `).all();
 }
 
-function statusForRow(row) {
+function statusForRow(row, liveNow) {
+  if (!liveNow) {
+    return { icon: '⚫', label: 'اللايف أوفلاين', minutes: row.last_activity_at ? diffMinutes(new Date(), row.last_activity_at) : null, rank: 5 };
+  }
+
   if (!row.last_activity_at) {
     return { icon: '🔴', label: 'غير موجود', minutes: null, rank: 4 };
   }
@@ -65,13 +61,25 @@ function timeAgo(minutes) {
 }
 
 function unix(iso) {
+  if (!iso) return Math.floor(Date.now() / 1000);
   return Math.floor(new Date(iso).getTime() / 1000);
 }
 
-function buildPresenceEmbed() {
+function getSortedRows(liveNow) {
+  return getPresenceRows()
+    .map((row) => ({ ...row, presence: statusForRow(row, liveNow) }))
+    .sort((a, b) => {
+      if (a.presence.rank !== b.presence.rank) return a.presence.rank - b.presence.rank;
+      const aTime = a.last_activity_at ? new Date(a.last_activity_at).getTime() : 0;
+      const bTime = b.last_activity_at ? new Date(b.last_activity_at).getTime() : 0;
+      if (aTime !== bTime) return bTime - aTime;
+      return String(a.kick_username).localeCompare(String(b.kick_username), 'ar');
+    });
+}
+
+function buildLiveEmbed() {
   const state = streamState();
-  const rows = getPresenceRows().map((row) => ({ ...row, presence: statusForRow(row) }))
-    .sort((a, b) => a.presence.rank - b.presence.rank || String(a.kick_username).localeCompare(String(b.kick_username)));
+  const rows = getSortedRows(true);
 
   const active = rows.filter((r) => ['موجود', 'متفاعل بدون شيفت'].includes(r.presence.label)).length;
   const openShifts = rows.filter((r) => r.shift_id).length;
@@ -96,27 +104,48 @@ function buildPresenceEmbed() {
     .setColor(0x22c55e)
     .setDescription(lines.join('\n\n').slice(0, 3900))
     .addFields(
-      { name: 'حالة اللايف', value: '🟢 Live', inline: true },
+      { name: 'حالة اللايف', value: '🟢 اللايف شغال', inline: true },
       { name: 'الموجودين', value: String(active), inline: true },
       { name: 'الشيفتات المفتوحة', value: String(openShifts), inline: true },
       { name: 'بدون تفاعل', value: String(weak), inline: true },
       { name: 'غير موجودين', value: String(missing), inline: true },
       { name: 'حد الوجود', value: `${config.presenceActiveMinutes} دقيقة`, inline: true },
-      { name: 'معلومة', value: `${startedLine}\nاللوحة تتحدث تلقائيًا كل دقيقة وقت اللايف.` }
+      { name: 'معلومة', value: `${startedLine}\nاللوحة تتحدث تلقائيًا كل دقيقة.` }
     )
     .setFooter({ text: 'Kick ModGuard • Presence Panel' })
     .setTimestamp(new Date());
 }
 
-function buildOfflineEmbed(reason = 'انتهى اللايف') {
+function buildOfflineEmbed(reason = 'اللايف أوفلاين') {
   const state = streamState();
-  const ended = state?.ended_at ? `<t:${unix(state.ended_at)}:f>` : `<t:${Math.floor(Date.now() / 1000)}:f>`;
+  const rows = getSortedRows(false);
+  const endedLine = state?.ended_at
+    ? `آخر إغلاق: <t:${unix(state.ended_at)}:R>`
+    : 'آخر إغلاق: غير معروف';
+
+  const lines = rows.length ? rows.map((r, index) => {
+    const last = r.last_activity_at ? timeAgo(diffMinutes(new Date(), r.last_activity_at)) : 'لا يوجد';
+    return `**${index + 1}.** ⚫ <@${r.discord_id}> | Kick: \`${r.kick_username}\`\n` +
+      `الحالة: **متوقف لأن اللايف أوفلاين** | آخر تفاعل: ${last}`;
+  }) : ['لا يوجد مودات متضافة في النظام.'];
+
   return new EmbedBuilder()
     .setTitle('🔴 لوحة وجود مودات Kick')
     .setColor(0xef4444)
-    .setDescription(`${reason}\nتوقفت تحديثات اللوحة لأن اللايف غير شغال.`)
-    .addFields({ name: 'وقت الإيقاف', value: ended, inline: true })
+    .setDescription(lines.join('\n\n').slice(0, 3900))
+    .addFields(
+      { name: 'حالة اللايف', value: '🔴 اللايف أوفلاين', inline: true },
+      { name: 'المودات المسجلة', value: String(rows.length), inline: true },
+      { name: 'التحديث', value: `كل ${config.presenceUpdateSeconds} ثانية`, inline: true },
+      { name: 'معلومة', value: `${reason}\n${endedLine}\nأول ما اللايف يشتغل، نفس اللوحة هتتحول للأخضر وترتب المودات حسب الوجود والتفاعل.` }
+    )
+    .setFooter({ text: 'Kick ModGuard • Presence Panel' })
     .setTimestamp(new Date());
+}
+
+function buildPresenceEmbed() {
+  const state = streamState();
+  return state?.is_live ? buildLiveEmbed() : buildOfflineEmbed('اللايف غير شغال حاليًا');
 }
 
 async function getPanelChannel() {
@@ -134,22 +163,12 @@ async function savePanelMessage(message) {
   `).run(message.id, message.channel.id, new Date().toISOString());
 }
 
-async function clearPanelMessage() {
-  db.prepare(`
-    UPDATE stream_state
-    SET panel_message_id = NULL, panel_channel_id = NULL, panel_created_at = NULL
-    WHERE id = 1
-  `).run();
-}
-
-async function updatePresencePanel() {
-  if (!isLive()) return { ok: false, reason: 'offline' };
-
+async function updatePresencePanel(reason = null) {
   const channel = await getPanelChannel();
   if (!channel) return { ok: false, reason: 'presence channel not found' };
 
   const state = streamState();
-  const embed = buildPresenceEmbed();
+  const embed = state?.is_live ? buildLiveEmbed() : buildOfflineEmbed(reason || 'اللايف غير شغال حاليًا');
 
   if (state?.panel_message_id) {
     const oldChannel = state.panel_channel_id
@@ -158,42 +177,24 @@ async function updatePresencePanel() {
     const message = await oldChannel.messages.fetch(state.panel_message_id).catch(() => null);
     if (message) {
       await message.edit({ embeds: [embed] });
-      return { ok: true, edited: true };
+      return { ok: true, edited: true, live: Boolean(state?.is_live) };
     }
   }
 
   const message = await channel.send({ embeds: [embed] });
   await savePanelMessage(message);
-  return { ok: true, created: true };
-}
-
-async function finalizePresencePanel(reason = 'انتهى اللايف على Kick') {
-  const state = streamState();
-  if (!clientRef || !state?.panel_message_id) return { ok: false, reason: 'no panel' };
-
-  const channel = state.panel_channel_id
-    ? await clientRef.channels.fetch(state.panel_channel_id).catch(() => null)
-    : await getPanelChannel();
-  if (!channel) {
-    await clearPanelMessage();
-    return { ok: false, reason: 'channel not found' };
-  }
-
-  const message = await channel.messages.fetch(state.panel_message_id).catch(() => null);
-  if (message) await message.edit({ embeds: [buildOfflineEmbed(reason)] }).catch(() => null);
-  await clearPanelMessage();
-  return { ok: true };
+  return { ok: true, created: true, live: Boolean(state?.is_live) };
 }
 
 async function handleStreamStatusChanged(isLiveNow) {
-  if (isLiveNow) return updatePresencePanel();
-  return finalizePresencePanel('انتهى اللايف على Kick');
+  return updatePresencePanel(isLiveNow ? 'بدأ اللايف على Kick' : 'اللايف أوفلاين');
 }
 
 module.exports = {
   setClient,
   updatePresencePanel,
-  finalizePresencePanel,
   handleStreamStatusChanged,
-  buildPresenceEmbed
+  buildPresenceEmbed,
+  buildLiveEmbed,
+  buildOfflineEmbed
 };
