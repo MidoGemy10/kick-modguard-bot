@@ -1,52 +1,49 @@
-# Kick ModGuard Bot
+# Kick ModGuard - Presence Panel
 
-بوت ديسكورد لتسجيل شيفتات مودات Kick بذكاء:
-- المود يفتح شيفت من ديسكورد.
-- البوت يراقب تفاعل المود في شات Kick عن طريق Webhooks.
-- لو عدى 30 دقيقة بدون تفاعل = تحذير.
-- لو التحذيرات وصلت 3 = قفل تلقائي للشيفت.
-- نهاية اللايف تقفل الشيفتات تلقائياً إذا الإعداد مفعل.
+بوت ديسكورد لمودات Kick بنظام لوحة وجود ذكية:
 
-## التشغيل السريع
+- لا يوجد نظام تحذيرات أو قفل تلقائي بسبب الخمول.
+- أول ما اللايف يبقى Live، البوت يرسل لوحة في قناة محددة.
+- اللوحة تتحدث تلقائيًا كل دقيقة.
+- المود يظهر "موجود" لو تفاعل في شات Kick خلال آخر 30 دقيقة.
+- المود يظهر "غير موجود" لو مفيش تفاعل حديث.
+- يدعم رسائل الشات وأحداث المودريشن المتاحة من Kick Webhooks.
+
+## أهم المتغيرات
+
+```env
+PRESENCE_CHANNEL_ID=ID_CHANNEL_FOR_PANEL
+PRESENCE_ACTIVE_MINUTES=30
+PRESENCE_UPDATE_SECONDS=60
+DATABASE_PATH=/app/data/modguard.sqlite
+```
+
+لو `PRESENCE_CHANNEL_ID` مش موجود، البوت يستخدم `LOG_CHANNEL_ID`.
+
+## التشغيل
 
 ```bash
 npm install
-cp .env.example .env
-# عدل بيانات .env
-# على Northflank استخدم DATABASE_PATH=/app/data/modguard.sqlite مع Volume على /app/data
 npm run deploy
 npm start
 ```
 
-## Endpoint الخاص بك في Kick
-
-بعد رفع البوت على الاستضافة، رابط Webhook سيكون:
-
-```txt
-https://your-domain.com/kick/webhook
-```
-
-## الاشتراك في أحداث Kick
-
-بعد وضع KICK_APP_ACCESS_TOKEN و PUBLIC_URL و KICK_BROADCASTER_USER_ID في .env:
-
-```bash
-npm run subscribe:kick
-```
-
-الأحداث المستخدمة:
-- chat.message.sent
-- livestream.status.updated
-- moderation.banned
-
 ## أوامر ديسكورد
 
-- /اضافة-مود عضو kick_username
-- /حذف-مود عضو
-- /دخول
-- /خروج
-- /حالتي
-- /تقرير-المودات الفترة
-- /قفل-شيفت عضو السبب
-- /اعدادات-الحضور
+- `/اضافة-مود`
+- `/حذف-مود`
+- `/دخول`
+- `/خروج`
+- `/حالتي`
+- `/تقرير-المودات`
+- `/قفل-شيفت`
+- `/لوحة-المودات`
+- `/اعدادات-الحضور`
 
+## Northflank
+
+- Build type: Dockerfile
+- Build context: `/`
+- Dockerfile location: `/Dockerfile`
+- CMD override: Custom command = `node src/index.js`
+- Volume mount path: `/app/data`
