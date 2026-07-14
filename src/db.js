@@ -100,4 +100,14 @@ addColumnIfMissing('stream_state', 'panel_channel_id', 'TEXT');
 addColumnIfMissing('stream_state', 'panel_created_at', 'TEXT');
 
 
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS mod_scores (
+ mod_id INTEGER PRIMARY KEY,
+ points INTEGER NOT NULL DEFAULT 0,
+ active_minutes INTEGER NOT NULL DEFAULT 0,
+ messages_count INTEGER NOT NULL DEFAULT 0
+);
+`);
+
 module.exports = db;

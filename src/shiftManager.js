@@ -230,3 +230,21 @@ module.exports = {
   getReport,
   isStreamLive
 };
+
+
+function processActivityCycle() {
+  if (!isStreamLive()) return;
+  const mods = db.prepare("SELECT * FROM mods WHERE active = 1").all();
+  const now = Date.now();
+  for (const mod of mods) {
+    if (!mod.last_activity_at) continue;
+    const diff = now - new Date(mod.last_activity_at).getTime();
+    if (diff <= 180000) {
+      db.prepare(`INSERT INTO mod_scores(mod_id,points,active_minutes,messages_count)
+      VALUES(?,3,3,0)
+      ON CONFLICT(mod_id) DO UPDATE SET points=points+3, active_minutes=active_minutes+3`).run(mod.id);
+    }
+  }
+}
+
+module.exports.processActivityCycle = processActivityCycle;

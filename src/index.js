@@ -3,7 +3,7 @@ const config = require('./config');
 const { startWebhookServer } = require('./kick/webhookServer');
 const { handleInteraction } = require('./discord/handlers');
 const logs = require('./discord/logs');
-const presencePanel = require('./discord/presencePanel');
+const presencePanel = require('./discord/presencePanel');\nconst shiftManager = require('./shiftManager');
 
 if (!config.discordToken) {
   console.error('DISCORD_TOKEN missing in .env');
@@ -27,7 +27,7 @@ client.once('ready', () => {
   // لو البوت اتعمله Restart واللايف شغال، اللوحة ترجع تتحدث تلقائيًا.
   presencePanel.updatePresencePanel().catch((err) => console.error('[PRESENCE_PANEL_START_ERROR]', err));
 
-  console.log(`[PRESENCE] Panel update every ${config.presenceUpdateSeconds} seconds.`);
+  setInterval(()=>shiftManager.processActivityCycle&&shiftManager.processActivityCycle(),180000);\n  console.log(`[PRESENCE] Panel update every ${config.presenceUpdateSeconds} seconds.`);
 });
 
 client.on('interactionCreate', (interaction) => {
