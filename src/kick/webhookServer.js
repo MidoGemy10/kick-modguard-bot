@@ -30,6 +30,10 @@ function createWebhookServer() {
 
       const eventType = req.headers['kick-event-type'];
       const payload = JSON.parse(req.body.toString('utf8'));
+      console.log('==============================');
+      console.log('KICK EVENT:', eventType);
+      console.log(JSON.stringify(payload, null, 2));
+      console.log('==============================');
 
       if (config.kickBroadcasterUserId && payload?.broadcaster?.user_id) {
         if (String(payload.broadcaster.user_id) !== String(config.kickBroadcasterUserId)) {
