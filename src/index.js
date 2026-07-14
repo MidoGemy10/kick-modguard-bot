@@ -3,7 +3,8 @@ const config = require('./config');
 const { startWebhookServer } = require('./kick/webhookServer');
 const { handleInteraction } = require('./discord/handlers');
 const logs = require('./discord/logs');
-const presencePanel = require('./discord/presencePanel');\nconst shiftManager = require('./shiftManager');
+const presencePanel = require('./discord/presencePanel');
+const shiftManager = require('./shiftManager');
 
 if (!config.discordToken) {
   console.error('DISCORD_TOKEN missing in .env');
