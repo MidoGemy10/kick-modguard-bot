@@ -42,8 +42,8 @@ function buildPresenceEmbed() {
   const mods = getMods();
 
   const liveStatus = state?.is_live
-    ? '🟢 مباشر'
-    : '🔴 أوفلاين';
+    ? 'مباشر 🟢'
+    : 'أوفلاين 🔴';
 
   const modList = mods.length
     ? mods.map(m => `• <@${m.discord_id}>`).join('\n')
@@ -54,12 +54,12 @@ function buildPresenceEmbed() {
     .setColor(state?.is_live ? 0x22c55e : 0xef4444)
     .addFields(
       {
-        name: '🟢 حالة اللايف',
+        name: 'حالة اللايف 🟢',
         value: liveStatus,
         inline: false
       },
       {
-        name: '👥 المودات المتصلة',
+        name: 'المودات المتصلة 👥',
         value: `**${mods.length}**`,
         inline: false
       },
