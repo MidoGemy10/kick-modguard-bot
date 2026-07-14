@@ -32,21 +32,54 @@ async function handleInteraction(interaction) {
 
   if (name === 'اضافة-مود') {
     if (!(await requireAdmin(interaction))) return;
-    const user = interaction.options.getUser('عضو', true);
-    const kickUsername = interaction.options.getString('يوزر_كيك', true).replace('@', '').trim();
 
-    const mod = shiftManager.addMod({ discordId: user.id, kickUsername });
+    const user = interaction.options.getUser('عضو', true);
+    const kickUsername = interaction.options
+      .getString('يوزر_كيك', true)
+      .replace('@', '')
+      .trim();
+
+    // التحقق إذا كان المود موجود بالفعل
+    const existing = shiftManager.getModByDiscord(user.id);
+
+    if (existing && existing.active) {
+      return interaction.reply({
+        content: `❌ <@${user.id}> موجود بالفعل في النظام.`,
+        ephemeral: true
+      });
+    }
+
+    const mod = shiftManager.addMod({
+      discordId: user.id,
+      kickUsername
+    });
+
     return interaction.reply({
-      content: `✅ تم إضافة <@${user.id}> كمود وربطه بحساب Kick: **${mod.kick_username}**\nأول رسالة منه في شات Kick هتثبت الـ Kick User ID تلقائيًا.`,
+      content: `✅ تم إضافة <@${user.id}> وربطه بحساب Kick: **${mod.kick_username}**`,
       ephemeral: true
     });
   }
 
   if (name === 'حذف-مود') {
     if (!(await requireAdmin(interaction))) return;
+
     const user = interaction.options.getUser('عضو', true);
+
+    const existing = shiftManager.getModByDiscord(user.id);
+
+    if (!existing || !existing.active) {
+      return interaction.reply({
+        content: `❌ <@${user.id}> غير موجود في النظام.`,
+        ephemeral: true
+      });
+    }
+
     shiftManager.removeMod(user.id);
-    return interaction.reply({ content: `✅ تم حذف <@${user.id}> من نظام الحضور.`, ephemeral: true });
+
+    return interaction.reply({
+      content: `✅ تم حذف <@${user.id}> من النظام.`,
+      ephemeral: true
+    });
   }
 
   if (name === 'دخول') {
