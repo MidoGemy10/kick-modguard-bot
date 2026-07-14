@@ -54,24 +54,23 @@ function buildPresenceEmbed() {
     .setColor(state?.is_live ? 0x22c55e : 0xef4444)
     .addFields(
       {
-        name: 'حالة اللايف',
+        name: '🟢 حالة اللايف',
         value: liveStatus,
         inline: false
       },
       {
-        name: 'المودات المتصلة',
-        value: String(mods.length),
+        name: '👥 المودات المتصلة',
+        value: `**${mods.length}**`,
         inline: false
       },
       {
-        name: 'المودات',
-        value: modList.slice(0, 1024),
+        name: '━━━━━━━━━━━━',
+        value: mods.length
+          ? modList.slice(0, 1024)
+          : 'لا يوجد مودات متصلة',
         inline: false
       }
     )
-    .setFooter({
-      text: `آخر تحديث: ${new Date().toLocaleTimeString('ar-EG')}`
-    })
     .setTimestamp();
 }
 
