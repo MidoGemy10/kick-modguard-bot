@@ -17,26 +17,47 @@ const client = new Client({
 
 client.once('ready', () => {
   console.log(`[DISCORD] Logged in as ${client.user.tag}`);
+
   logs.setClient(client);
   presencePanel.setClient(client);
 
   const updateMs = Math.max(15, config.presenceUpdateSeconds) * 1000;
+
   setInterval(() => {
-    presencePanel.updatePresencePanel().catch((err) => console.error('[PRESENCE_PANEL_ERROR]', err));
+    presencePanel
+      .updatePresencePanel()
+      .catch((err) => console.error('[PRESENCE_PANEL_ERROR]', err));
   }, updateMs);
 
-  // لو البوت اتعمله Restart واللايف شغال، اللوحة ترجع تتحدث تلقائيًا.
-  presencePanel.updatePresencePanel().catch((err) => console.error('[PRESENCE_PANEL_START_ERROR]', err));
+  presencePanel
+    .updatePresencePanel()
+    .catch((err) => console.error('[PRESENCE_PANEL_START_ERROR]', err));
 
-  setInterval(()=>shiftManager.processActivityCycle&&shiftManager.processActivityCycle(),180000);\n  console.log(`[PRESENCE] Panel update every ${config.presenceUpdateSeconds} seconds.`);
+  setInterval(() => {
+    if (typeof shiftManager.processActivityCycle === 'function') {
+      shiftManager.processActivityCycle();
+    }
+  }, 180000);
+
+  console.log(
+    `[PRESENCE] Panel update every ${config.presenceUpdateSeconds} seconds.`
+  );
 });
 
 client.on('interactionCreate', (interaction) => {
   handleInteraction(interaction).catch(async (err) => {
     console.error('[INTERACTION_ERROR]', err);
-    const msg = { content: '❌ حصل خطأ غير متوقع.', ephemeral: true };
-    if (interaction.deferred || interaction.replied) await interaction.followUp(msg).catch(() => null);
-    else await interaction.reply(msg).catch(() => null);
+
+    const msg = {
+      content: '❌ حصل خطأ غير متوقع.',
+      ephemeral: true
+    };
+
+    if (interaction.deferred || interaction.replied) {
+      await interaction.followUp(msg).catch(() => null);
+    } else {
+      await interaction.reply(msg).catch(() => null);
+    }
   });
 });
 
