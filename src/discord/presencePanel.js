@@ -13,14 +13,28 @@ function streamState() {
 }
 
 function getMods() {
-  return db.prepare(`
+  const state = streamState();
+
+  if (!state?.is_live) {
+    return [];
+  }
+
+  const mods = db.prepare(`
     SELECT
       discord_id,
-      kick_username
+      kick_username,
+      last_activity_at
     FROM mods
     WHERE active = 1
-    ORDER BY kick_username ASC
   `).all();
+
+  const now = Date.now();
+
+  return mods.filter(mod => {
+    if (!mod.last_activity_at) return false;
+
+    return (now - new Date(mod.last_activity_at).getTime()) <= 180000;
+  });
 }
 
 function buildPresenceEmbed() {
@@ -32,8 +46,8 @@ function buildPresenceEmbed() {
     : '🔴 أوفلاين';
 
   const modList = mods.length
-    ? mods.map(m => `• ${m.kick_username}`).join('\n')
-    : 'لا يوجد مودات مسجلة';
+    ? mods.map(m => `• <@${m.discord_id}>`).join('\n')
+    : 'لا يوجد مودات متصلة';
 
   return new EmbedBuilder()
     .setTitle('لوحة وجود مودات Kick')
@@ -45,7 +59,7 @@ function buildPresenceEmbed() {
         inline: false
       },
       {
-        name: 'المودات المسجلة',
+        name: 'المودات المتصلة',
         value: String(mods.length),
         inline: false
       },
