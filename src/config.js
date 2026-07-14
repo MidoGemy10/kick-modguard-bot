@@ -28,7 +28,7 @@ module.exports = {
   // قناة لوحة وجود المودات. لو مش موجودة، البوت يستخدم LOG_CHANNEL_ID.
   presenceChannelId: process.env.PRESENCE_CHANNEL_ID || process.env.LOG_CHANNEL_ID,
   presenceActiveMinutes: int(process.env.PRESENCE_ACTIVE_MINUTES || process.env.INACTIVITY_MINUTES, 30),
-  presenceUpdateSeconds: int(process.env.PRESENCE_UPDATE_SECONDS, 60),
+  presenceUpdateSeconds: int(process.env.PRESENCE_UPDATE_SECONDS, 10),
 
   minMessageLength: int(process.env.MIN_MESSAGE_LENGTH, 3),
   duplicateWindowMinutes: int(process.env.DUPLICATE_WINDOW_MINUTES, 10),
