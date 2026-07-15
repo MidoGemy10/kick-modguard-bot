@@ -94,40 +94,63 @@ async function savePanelMessage(message) {
   `).run(message.id, message.channel.id);
 }
 
-async function updatePresencePanel() {
-  const channel = await getPanelChannel();
+  async function updatePresencePanel() {
+    const channel = await getPanelChannel();
 
-  if (!channel) {
-    return {
-      ok: false,
-      reason: 'presence channel not found'
-    };
-  }
+    if (!channel) {
+      return {
+        ok: false,
+        reason: 'presence channel not found'
+      };
+    }
 
-  const state = streamState();
-  const embed = buildPresenceEmbed();
+    const state = streamState();
+    const embed = buildPresenceEmbed();
 
-  if (state?.panel_message_id) {
-    const oldChannel = state.panel_channel_id
-      ? await clientRef.channels
-          .fetch(state.panel_channel_id)
-          .catch(() => channel)
-      : channel;
+    let message = null;
 
-    const message = await oldChannel.messages
-      .fetch(state.panel_message_id)
-      .catch(() => null);
+    if (state?.panel_message_id && state?.panel_channel_id) {
+      try {
+        const oldChannel = await clientRef.channels.fetch(state.panel_channel_id);
 
-    if (message) {
-      await message.edit({
+        if (oldChannel && oldChannel.isTextBased()) {
+          message = await oldChannel.messages
+            .fetch(state.panel_message_id)
+            .catch(() => null);
+        }
+      } catch {
+        message = null;
+      }
+    }
+
+    if (!message) {
+      db.prepare(`
+        UPDATE stream_state
+        SET panel_message_id = NULL,
+            panel_channel_id = NULL
+        WHERE id = 1
+      `).run();
+
+      message = await channel.send({
         embeds: [embed]
       });
 
+      await savePanelMessage(message);
+
       return {
         ok: true,
-        edited: true
+        created: true
       };
     }
+
+    await message.edit({
+      embeds: [embed]
+    });
+
+    return {
+      ok: true,
+      edited: true
+    };
   }
 
   const message = await channel.send({
