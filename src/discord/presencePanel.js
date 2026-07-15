@@ -74,6 +74,26 @@ function buildPresenceEmbed() {
     .setTimestamp();
 }
 
+async function getPanelChannel() {
+  if (!clientRef || !config.presenceChannelId) return null;
+
+  const channel = await clientRef.channels
+    .fetch(config.presenceChannelId)
+    .catch(() => null);
+
+  if (!channel || !channel.isTextBased?.()) return null;
+
+  return channel;
+}
+
+async function savePanelMessage(message) {
+  db.prepare(`
+    UPDATE stream_state
+    SET panel_message_id = ?, panel_channel_id = ?
+    WHERE id = 1
+  `).run(message.id, message.channel.id);
+}
+
 async function updatePresencePanel() {
   const channel = await getPanelChannel();
 
@@ -87,51 +107,28 @@ async function updatePresencePanel() {
   const state = streamState();
   const embed = buildPresenceEmbed();
 
-  let message = null;
+  if (state?.panel_message_id) {
+    const oldChannel = state.panel_channel_id
+      ? await clientRef.channels
+          .fetch(state.panel_channel_id)
+          .catch(() => channel)
+      : channel;
 
-  if (state?.panel_message_id && state?.panel_channel_id) {
-    try {
-      const oldChannel = await clientRef.channels.fetch(state.panel_channel_id);
+    const message = await oldChannel.messages
+      .fetch(state.panel_message_id)
+      .catch(() => null);
 
-      if (oldChannel && oldChannel.isTextBased()) {
-        message = await oldChannel.messages
-          .fetch(state.panel_message_id)
-          .catch(() => null);
-      }
-    } catch {
-      message = null;
+    if (message) {
+      await message.edit({
+        embeds: [embed]
+      });
+
+      return {
+        ok: true,
+        edited: true
+      };
     }
   }
-
-  if (!message) {
-    db.prepare(`
-      UPDATE stream_state
-      SET panel_message_id = NULL,
-          panel_channel_id = NULL
-      WHERE id = 1
-    `).run();
-
-    message = await channel.send({
-      embeds: [embed]
-    });
-
-    await savePanelMessage(message);
-
-    return {
-      ok: true,
-      created: true
-    };
-  }
-
-  await message.edit({
-    embeds: [embed]
-  });
-
-  return {
-    ok: true,
-    edited: true
-  };
-}
 
   const message = await channel.send({
     embeds: [embed]
