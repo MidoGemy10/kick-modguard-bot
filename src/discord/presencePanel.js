@@ -107,39 +107,37 @@ async function updatePresencePanel() {
   const state = streamState();
   const embed = buildPresenceEmbed();
 
-  if (state?.panel_message_id) {
-    const oldChannel = state.panel_channel_id
-      ? await clientRef.channels
-          .fetch(state.panel_channel_id)
-          .catch(() => channel)
-      : channel;
+  let message = null;
 
-    const message = await oldChannel.messages
-      .fetch(state.panel_message_id)
-      .catch(() => null);
+  if (state?.panel_message_id && state?.panel_channel_id) {
+    try {
+      const oldChannel = await clientRef.channels.fetch(state.panel_channel_id);
 
-    if (message) {
-      await message.edit({
-        embeds: [embed]
-      });
-
-      return {
-        ok: true,
-        edited: true
-      };
+      if (oldChannel && oldChannel.isTextBased()) {
+        message = await oldChannel.messages.fetch(state.panel_message_id).catch(() => null);
+      }
+    } catch {
+      message = null;
     }
   }
 
-  const message = await channel.send({
-    embeds: [embed]
-  });
+  if (!message) {
+    db.prepare(`
+      UPDATE stream_state
+      SET panel_message_id = NULL,
+          panel_channel_id = NULL
+      WHERE id = 1
+    `).run();
 
-  await savePanelMessage(message);
+    message = await channel.send({ embeds: [embed] });
+    await savePanelMessage(message);
 
-  return {
-    ok: true,
-    created: true
-  };
+    return { ok: true, created: true };
+  }
+
+  await message.edit({ embeds: [embed] });
+
+  return { ok: true, edited: true };
 }
 
 async function handleStreamStatusChanged() {
